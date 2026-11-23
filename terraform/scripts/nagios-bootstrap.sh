@@ -11,7 +11,9 @@ a2enmod rewrite cgi authz_groupfile
 # Set nagiosadmin password
 htpasswd -b -c /etc/nagios4/htpasswd.users nagiosadmin "${admin_password}"
 
-# Ensure Nagios directory permissions
+# Ensure Apache allows public access to Nagios 4 UI
+sed -i 's|Require ip.*|Require all granted|g' /etc/apache2/conf-available/nagios4-cgi.conf
+a2enconf nagios4-cgi
 chown -R nagios:nagios /etc/nagios4/
 chmod -R 755 /etc/nagios4/
 
