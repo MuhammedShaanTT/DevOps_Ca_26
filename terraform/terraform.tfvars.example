@@ -1,0 +1,10 @@
+# Example Terraform variable values
+# Copy this file to terraform.tfvars and fill in your details:
+# cp terraform.tfvars.example terraform.tfvars
+
+aws_region             = "ap-south-1"         # e.g. ap-south-1, us-east-1, etc.
+project_name           = "int333-devops"
+key_name               = "your-aws-key-pair"   # MUST exist in your AWS EC2 region
+admin_ip               = "0.0.0.0/0"           # Restrict to your public IP, e.g. 103.21.244.10/32
+web_count              = 2
+nagios_admin_password  = "DevOpsAdmin2026!"

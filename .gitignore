@@ -1,0 +1,37 @@
+# Terraform local state and files
+.terraform/
+terraform/plugins/
+*.zip
+*.exe
+terraform.rc
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+!terraform.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# SSH Keys
+*.pem
+*.id_rsa
+id_rsa*
+*.key
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+.venv/
+venv/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Pytest cache
+.pytest_cache/
