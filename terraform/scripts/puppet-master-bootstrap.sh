@@ -17,6 +17,10 @@ apt-get install -y puppetserver
 # Configure JVM heap size (Limit to 1GB for t3.small instance memory safety)
 sed -i 's/-Xms2g -Xmx2g/-Xms1g -Xmx1g/g' /etc/default/puppetserver
 
+# Map puppet to local IP in hosts
+echo "127.0.0.1 puppet" >> /etc/hosts
+echo "10.0.1.10 puppet" >> /etc/hosts
+
 # Enable auto-signing for lab environment instances
 echo "*" > /etc/puppetlabs/puppet/autosign.conf
 

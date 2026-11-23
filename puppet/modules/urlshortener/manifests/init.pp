@@ -8,6 +8,8 @@ class urlshortener (
     'python3',
     'python3-pip',
     'python3-venv',
+    'python3-flask',
+    'python3-gunicorn',
     'sqlite3'
   ]
 
@@ -22,7 +24,6 @@ class urlshortener (
     mode   => '0755',
   }
 
-  # Deploy Flask App script (Self-healing target)
   file { "${app_dir}/app.py":
     ensure  => file,
     owner   => 'root',
@@ -33,14 +34,6 @@ class urlshortener (
     require => File[$app_dir],
   }
 
-  # Install Python requirements
-  exec { 'install_flask_gunicorn':
-    command => '/usr/bin/pip3 install Flask==3.0.3 gunicorn==22.0.0',
-    unless  => '/usr/local/bin/gunicorn --version',
-    require => Package['python3-pip'],
-  }
-
-  # Systemd service unit definition
   file { '/etc/systemd/system/urlshortener.service':
     ensure  => file,
     owner   => 'root',
@@ -55,7 +48,7 @@ class urlshortener (
       User=root
       WorkingDirectory=/opt/urlshortener
       ExecStartPre=/usr/bin/python3 -c "import app; app.init_db()"
-      ExecStart=/usr/local/bin/gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
+      ExecStart=/usr/bin/python3 -m gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
       Restart=always
       RestartSec=3
       Environment=PYTHONUNBUFFERED=1
@@ -75,14 +68,14 @@ class urlshortener (
     refreshonly => true,
   }
 
-  # Service enforcement (Self-healing target)
   service { 'urlshortener':
     ensure  => running,
     enable  => true,
     require => [
       File['/etc/systemd/system/urlshortener.service'],
       File["${app_dir}/app.py"],
-      Exec['install_flask_gunicorn']
+      Package['python3-flask'],
+      Package['python3-gunicorn']
     ],
   }
 }

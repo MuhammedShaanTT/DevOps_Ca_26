@@ -7,10 +7,11 @@ NODE_NAME="${node_name}"
 
 # Set hostname
 hostnamectl set-hostname "$NODE_NAME"
+echo "$MASTER_IP puppet" >> /etc/hosts
 
 # Update package index and install curl/wget
 apt-get update -y
-apt-get install -y wget curl git
+apt-get install -y wget curl git python3-flask python3-gunicorn
 
 # Add Puppet 7 repository
 wget https://apt.puppet.com/puppet7-release-jammy.deb -O /tmp/puppet7-release-jammy.deb
@@ -24,7 +25,7 @@ apt-get install -y puppet-agent
 cat <<EOF > /etc/puppetlabs/puppet/puppet.conf
 [main]
 certname = $NODE_NAME
-server = $MASTER_IP
+server = puppet
 environment = production
 runinterval = 30m
 EOF
