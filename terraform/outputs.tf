@@ -27,11 +27,11 @@ output "web_nodes_info" {
   description = "Public IPs and Web Application URLs for URL Shortener nodes"
   value = [
     for idx, inst in aws_instance.web_nodes : {
-      node_name   = "web-${idx + 1}"
-      public_ip   = inst.public_ip
-      private_ip  = inst.private_ip
-      app_url     = "http://${inst.public_ip}/"
-      health_url  = "http://${inst.public_ip}/health"
+      node_name  = "web-${idx + 1}"
+      public_ip  = inst.public_ip
+      private_ip = inst.private_ip
+      app_url    = "http://${inst.public_ip}/"
+      health_url = "http://${inst.public_ip}/health"
     }
   ]
 }
@@ -41,7 +41,7 @@ output "ssh_commands" {
   value = {
     puppet_master = "ssh -i <your-key.pem> ubuntu@${aws_instance.puppet_master.public_ip}"
     nagios_server = "ssh -i <your-key.pem> ubuntu@${aws_instance.nagios_server.public_ip}"
-    web_nodes     = [
+    web_nodes = [
       for idx, inst in aws_instance.web_nodes :
       "ssh -i <your-key.pem> ubuntu@${inst.public_ip}"
     ]
