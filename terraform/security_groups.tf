@@ -114,6 +114,15 @@ resource "aws_security_group" "web_nodes" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Alternate HTTP port (bypasses campus/college firewall proxies)
+  ingress {
+    description = "HTTP Port 8080"
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   # App direct port (optional / internal)
   ingress {
     description = "Direct URL Shortener Port"
