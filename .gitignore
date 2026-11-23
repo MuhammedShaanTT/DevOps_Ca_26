@@ -38,3 +38,7 @@ Thumbs.db
 
 # Terraform lock file (avoids cross-platform windows/linux lock conflict in CI)
 .terraform.lock.hcl
+
+# Local launcher with credentials
+deploy.bat
+destroy.bat
