@@ -35,3 +35,6 @@ Thumbs.db
 
 # Pytest cache
 .pytest_cache/
+
+# Terraform lock file (avoids cross-platform windows/linux lock conflict in CI)
+.terraform.lock.hcl

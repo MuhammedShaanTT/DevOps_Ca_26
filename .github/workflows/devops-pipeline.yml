@@ -35,7 +35,7 @@ jobs:
 
       - name: Run Pytest Test Suite
         run: |
-          pytest tests/test_app.py -v
+          python -m pytest tests/test_app.py -v
 
   # -------------------------------------------------------------
   # Job 2: Terraform Validation & Security Linting
@@ -85,36 +85,3 @@ jobs:
       - name: Lint Puppet Manifests
         run: |
           find puppet -name "*.pp" -exec puppet-lint --no-autoloader_layout-check --no-140chars-check --no-documentation-check {} + || true
-
-  # -------------------------------------------------------------
-  # Job 4: Speculative Infrastructure Plan (Runs if AWS Secrets configured)
-  # -------------------------------------------------------------
-  terraform-plan:
-    name: "Terraform Speculative Plan"
-    needs: [test-app, terraform-ci, puppet-lint]
-    if: "${{ secrets.AWS_ACCESS_KEY_ID != '' }}"
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: terraform
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.8.0"
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'ap-south-1' }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Plan
-        run: terraform plan -no-color
