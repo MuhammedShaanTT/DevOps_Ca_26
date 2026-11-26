@@ -57,15 +57,12 @@ devops/
 
 ## Manual Deployment Commands (Windows PowerShell)
 
-### Step 1: Set Environment Variables and Key Permissions
-Run inside PowerShell from `c:\Users\shaha\devops`:
+### Step 1: Load `.env` and Set Key Permissions
+Copy `.env.example` to `.env` once and fill in your AWS keys (`.env` is gitignored so your credentials stay local). Then load it in PowerShell from `c:\Users\shaha\devops`:
 ```powershell
 Set-Location "c:\Users\shaha\devops"
 
-$env:TF_CLI_CONFIG_FILE    = "c:\Users\shaha\devops\terraform\terraform.rc"
-$env:AWS_ACCESS_KEY_ID     = "<your-aws-access-key>"
-$env:AWS_SECRET_ACCESS_KEY = "<your-aws-secret-key>"
-$env:AWS_DEFAULT_REGION    = "ap-south-1"
+Get-Content .\.env | ForEach-Object { if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)$') { [Environment]::SetEnvironmentVariable($matches[1], $matches[2].Trim(), "Process") } }
 
 icacls .\CA.pem /inheritance:r
 icacls .\CA.pem /grant:r "$($env:USERNAME):(R)"
@@ -120,13 +117,10 @@ ssh -i .\CA.pem -o StrictHostKeyChecking=no ubuntu@$NAGIOS_IP "sudo cp /tmp/gene
 
 Run inside PowerShell to terminate all EC2 instances, security groups, and VPC resources:
 ```powershell
+Set-Location "c:\Users\shaha\devops"
+Get-Content .\.env | ForEach-Object { if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)$') { [Environment]::SetEnvironmentVariable($matches[1], $matches[2].Trim(), "Process") } }
+
 Set-Location "c:\Users\shaha\devops\terraform"
-
-$env:TF_CLI_CONFIG_FILE    = "c:\Users\shaha\devops\terraform\terraform.rc"
-$env:AWS_ACCESS_KEY_ID     = "<your-aws-access-key>"
-$env:AWS_SECRET_ACCESS_KEY = "<your-aws-secret-key>"
-$env:AWS_DEFAULT_REGION    = "ap-south-1"
-
 terraform destroy -auto-approve
 ```
 

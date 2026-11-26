@@ -12,8 +12,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Auto-load local .env file if present
+$EnvFile = "c:\Users\shaha\devops\.env"
+if (Test-Path $EnvFile) {
+    Get-Content $EnvFile | ForEach-Object {
+        if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)$') {
+            [Environment]::SetEnvironmentVariable($matches[1], $matches[2].Trim(), "Process")
+        }
+    }
+    if (-not $AccessKey) { $AccessKey = $env:AWS_ACCESS_KEY_ID }
+    if (-not $SecretKey) { $SecretKey = $env:AWS_SECRET_ACCESS_KEY }
+    if ($env:AWS_DEFAULT_REGION) { $Region = $env:AWS_DEFAULT_REGION }
+}
+
 if (-not $AccessKey -or -not $SecretKey) {
-    Write-Host "AWS Access Key or Secret Key not found in environment." -ForegroundColor Red
+    Write-Host "AWS Access Key or Secret Key not found in environment or .env file." -ForegroundColor Red
     Write-Host "Usage: .\scripts\deploy.ps1 -AccessKey 'YOUR_KEY' -SecretKey 'YOUR_SECRET'" -ForegroundColor Yellow
     exit 1
 }

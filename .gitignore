@@ -41,3 +41,8 @@ Thumbs.db
 
 # Microsoft Office temp lock files
 ~$*
+
+# Local environment files with credentials
+.env
+.env.*
+!.env.example
