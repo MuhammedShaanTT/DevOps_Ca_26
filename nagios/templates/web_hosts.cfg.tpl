@@ -9,9 +9,10 @@ define hostgroup {
 define host {
     use                     generic-host
     host_name               ${node.name}
-    alias                   ${node.name} (${node.public_ip})
+    alias                   ${node.name} (${node.private_ip})
     address                 ${node.private_ip}
     hostgroups              web-servers
+    contact_groups          admins
     max_check_attempts      3
     check_period            24x7
     notification_interval   30
