@@ -12,7 +12,10 @@
 devops/
 ├── .github/workflows/
 │   └── devops-pipeline.yml        # GitHub Actions CI (Pytest, Flake8, Terraform, Puppet Lint)
-├── README.md                      # Project guide and manual deployment/destroy commands
+├── .env.example                   # Template for local AWS & Terraform environment variables
+├── deploy.bat                     # Windows batch launcher for full end-to-end deployment
+├── destroy.bat                    # Windows batch launcher for clean Terraform teardown
+├── README.md                      # Project guide and deployment/destroy instructions
 ├── docs/
 │   └── ARCHITECTURE.md            # Architectural blueprint and port mapping
 ├── app/
@@ -52,6 +55,14 @@ devops/
     ├── test_app.py                # Python unit tests (pytest)
     └── test_cases.sh              # Live infrastructure & self-healing verification script
 ```
+
+---
+
+## One-Click Batch Launchers (`.bat` + `.env`)
+
+Copy `.env.example` to `.env` once and fill in your AWS keys (`.env` is gitignored):
+- **Deploy everything together:** Double-click `deploy.bat` (or run `.\deploy.bat` in terminal). It loads `.env`, provisions AWS via Terraform, waits for `cloud-init`, uploads Puppet manifests/modules, applies Puppet on all web nodes, syncs and validates Nagios configs, and opens the deployed app URL.
+- **Destroy everything cleanly:** Double-click `destroy.bat` (or run `.\destroy.bat`) to load `.env` and run `terraform destroy -auto-approve`.
 
 ---
 

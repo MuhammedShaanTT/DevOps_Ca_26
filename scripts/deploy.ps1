@@ -12,8 +12,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
+if ($KeyPath -eq "c:\Users\shaha\devops\CA.pem") {
+    $KeyPath = Join-Path $ProjectRoot "CA.pem"
+}
+
 # Auto-load local .env file if present
-$EnvFile = "c:\Users\shaha\devops\.env"
+$EnvFile = Join-Path $ProjectRoot ".env"
 if (Test-Path $EnvFile) {
     Get-Content $EnvFile | ForEach-Object {
         if ($_ -match '^\s*([^#=]+?)\s*=\s*(.*)$') {
@@ -31,11 +36,18 @@ if (-not $AccessKey -or -not $SecretKey) {
     exit 1
 }
 
+if (-not (Test-Path $KeyPath)) {
+    Write-Host "SSH private key not found at: $KeyPath" -ForegroundColor Red
+    exit 1
+}
+
 Write-Host "`n=======================================================" -ForegroundColor Cyan
 Write-Host " [Step 1/5] Setting AWS Environment & Credentials... " -ForegroundColor Cyan
 Write-Host "=======================================================`n" -ForegroundColor Cyan
 
-$env:TF_CLI_CONFIG_FILE    = "c:\Users\shaha\devops\terraform\terraform.rc"
+if (-not $env:TF_CLI_CONFIG_FILE) {
+    $env:TF_CLI_CONFIG_FILE = Join-Path $ProjectRoot "terraform\terraform.rc"
+}
 $env:AWS_ACCESS_KEY_ID     = $AccessKey
 $env:AWS_SECRET_ACCESS_KEY = $SecretKey
 $env:AWS_DEFAULT_REGION    = $Region
@@ -48,7 +60,7 @@ Write-Host "`n=======================================================" -Foregrou
 Write-Host " [Step 2/5] Running Terraform Apply on AWS...          " -ForegroundColor Cyan
 Write-Host "=======================================================`n" -ForegroundColor Cyan
 
-Set-Location "c:\Users\shaha\devops\terraform"
+Set-Location (Join-Path $ProjectRoot "terraform")
 if (-not (Test-Path ".terraform")) {
     terraform init
 }
@@ -57,7 +69,7 @@ terraform apply -auto-approve
 $PUPPET_IP = (terraform output -raw puppet_master_public_ip).Trim()
 $NAGIOS_IP = (terraform output -raw nagios_server_public_ip).Trim()
 $WEB_NODES_JSON = terraform output -json web_nodes_info | ConvertFrom-Json
-Set-Location "c:\Users\shaha\devops"
+Set-Location $ProjectRoot
 
 Write-Host "`nTerraform Finished! Provisioned Nodes:" -ForegroundColor Green
 Write-Host " - Puppet Master IP : $PUPPET_IP" -ForegroundColor White
