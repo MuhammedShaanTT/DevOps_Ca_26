@@ -34,7 +34,7 @@ class nrpe (
       command[check_disk]=/usr/lib/nagios/plugins/check_disk -w 20% -c 10% -p /
       command[check_total_procs]=/usr/lib/nagios/plugins/check_procs -w 150 -c 200
       command[check_zombie_procs]=/usr/lib/nagios/plugins/check_procs -w 5 -c 10 -s Z
-      command[check_urlshortener_proc]=/usr/lib/nagios/plugins/check_procs -c 1:10 -C gunicorn
+      command[check_urlshortener_proc]=/usr/lib/nagios/plugins/check_procs -c 1:10 -C python3 -a app:app
       command[check_nginx_proc]=/usr/lib/nagios/plugins/check_procs -c 1:10 -C nginx
       NRPECFG
     ,

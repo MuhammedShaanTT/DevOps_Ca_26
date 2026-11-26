@@ -31,6 +31,7 @@ output "web_nodes_info" {
       public_ip  = inst.public_ip
       private_ip = inst.private_ip
       app_url    = "http://${inst.public_ip}/"
+      alt_url    = "http://${inst.public_ip}:8080/"
       health_url = "http://${inst.public_ip}/health"
     }
   ]

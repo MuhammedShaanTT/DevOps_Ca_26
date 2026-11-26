@@ -1,21 +1,37 @@
+from contextlib import contextmanager
 import os
+import random
+import socket
 import sqlite3
 import string
-import random
-from flask import Flask, request, redirect, render_template_string, jsonify
+from flask import Flask, jsonify, redirect, render_template_string, request
 
 app = Flask(__name__)
-DB_PATH = os.environ.get('URLSHORTENER_DB_PATH', '/opt/urlshortener/urls.db')
+DEFAULT_DB_PATH = '/opt/urlshortener/urls.db'
 
+
+def get_db_path():
+    """Return configured SQLite database path dynamically."""
+    return os.environ.get('URLSHORTENER_DB_PATH', DEFAULT_DB_PATH)
+
+
+@contextmanager
 def get_db():
-    db_dir = os.path.dirname(DB_PATH)
+    """Open and reliably close a SQLite database connection."""
+    db_path = get_db_path()
+    db_dir = os.path.dirname(db_path)
     if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(db_path, timeout=10.0)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
+
 
 def init_db():
+    """Create the URLs table if it does not already exist."""
     with get_db() as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS urls (
@@ -28,9 +44,37 @@ def init_db():
         ''')
         conn.commit()
 
+
 def generate_short_code(length=6):
+    """Generate a random alphanumeric short code."""
     chars = string.ascii_letters + string.digits
     return ''.join(random.choices(chars, k=length))
+
+
+def normalize_url(raw_url):
+    """Ensure URL has an explicit http:// or https:// scheme."""
+    cleaned = raw_url.strip()
+    if cleaned and not (cleaned.startswith('http://') or cleaned.startswith('https://')):
+        return 'https://' + cleaned
+    return cleaned
+
+
+def create_short_url(original_url, max_attempts=5):
+    """Insert a unique short code for original_url, retrying on rare collision."""
+    with get_db() as conn:
+        for _ in range(max_attempts):
+            code = generate_short_code()
+            try:
+                conn.execute(
+                    'INSERT INTO urls (short_code, original_url) VALUES (?, ?)',
+                    (code, original_url),
+                )
+                conn.commit()
+                return code
+            except sqlite3.IntegrityError:
+                continue
+    raise RuntimeError('Failed to allocate unique short code')
+
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -205,7 +249,7 @@ HTML_TEMPLATE = """
     <div class="container">
         <div class="header">
             <span class="badge">INT333 DevOps Final Project</span>
-            <h1>⚡ URL Shortener Microservice</h1>
+            <h1>URL Shortener Microservice</h1>
             <p class="subtitle">Automated via <strong>Terraform</strong> &bull; Managed by <strong>Puppet</strong> &bull; Monitored by <strong>Nagios</strong></p>
         </div>
 
@@ -215,7 +259,7 @@ HTML_TEMPLATE = """
                 <div style="font-size: 0.8rem; color: #047857; margin-bottom: 2px;">Shortened Link Ready:</div>
                 <a href="{{ short_url }}" target="_blank">{{ short_url }}</a>
             </div>
-            <button onclick="navigator.clipboard.writeText('{{ short_url }}'); this.innerText='Copied!';" style="padding: 0.4rem 0.75rem; font-size: 0.8rem; background: var(--success);">Copy</button>
+            <button type="button" data-url="{{ short_url }}" onclick="copyShortUrl(this)" style="padding: 0.4rem 0.75rem; font-size: 0.8rem; background: var(--success);">Copy</button>
         </div>
         {% endif %}
 
@@ -257,9 +301,34 @@ HTML_TEMPLATE = """
             <div>CI/CD: <strong>GitHub Actions</strong></div>
         </div>
     </div>
+    <script>
+        function copyShortUrl(btn) {
+            var text = btn.getAttribute('data-url');
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(function() {
+                    btn.innerText = 'Copied!';
+                });
+                return;
+            }
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            try {
+                document.execCommand('copy');
+                btn.innerText = 'Copied!';
+            } finally {
+                document.body.removeChild(ta);
+            }
+        }
+    </script>
 </body>
 </html>
 """
+
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -278,60 +347,61 @@ def health():
             "error": str(e)
         }), 500
 
+
 @app.route('/api/shorten', methods=['POST'])
 def api_shorten():
     """REST API endpoint for programmatic URL shortening."""
     data = request.get_json(silent=True) or {}
-    original_url = data.get('url', '').strip()
+    original_url = normalize_url(data.get('url', ''))
     if not original_url:
         return jsonify({"error": "Missing 'url' parameter"}), 400
 
-    if not (original_url.startswith('http://') or original_url.startswith('https://')):
-        original_url = 'https://' + original_url
-
-    code = generate_short_code()
-    with get_db() as conn:
-        conn.execute('INSERT INTO urls (short_code, original_url) VALUES (?, ?)', (code, original_url))
-        conn.commit()
-
+    code = create_short_url(original_url)
     return jsonify({
         "short_code": code,
         "short_url": request.host_url + code,
         "original_url": original_url
     }), 201
 
+
 @app.route('/', methods=['GET', 'POST'])
 def home():
+    """Render home page UI and process form submissions."""
     short_url = None
-    with get_db() as conn:
-        if request.method == 'POST':
-            original_url = request.form.get('url', '').strip()
-            if original_url:
-                if not (original_url.startswith('http://') or original_url.startswith('https://')):
-                    original_url = 'https://' + original_url
-                code = generate_short_code()
-                conn.execute('INSERT INTO urls (short_code, original_url) VALUES (?, ?)', (code, original_url))
-                conn.commit()
-                short_url = request.host_url + code
+    if request.method == 'POST':
+        original_url = normalize_url(request.form.get('url', ''))
+        if original_url:
+            code = create_short_url(original_url)
+            short_url = request.host_url + code
 
-        cursor = conn.execute('SELECT short_code, original_url, clicks FROM urls ORDER BY id DESC LIMIT 10')
+    with get_db() as conn:
+        cursor = conn.execute(
+            'SELECT short_code, original_url, clicks FROM urls ORDER BY id DESC LIMIT 10'
+        )
         items = cursor.fetchall()
 
-    import socket
     hostname = socket.gethostname()
     return render_template_string(HTML_TEMPLATE, short_url=short_url, items=items, hostname=hostname)
 
+
 @app.route('/<short_code>', methods=['GET'])
 def redirect_to_url(short_code):
+    """Resolve short code and increment click counter."""
     with get_db() as conn:
-        cursor = conn.execute('SELECT original_url, clicks FROM urls WHERE short_code = ?', (short_code,))
+        cursor = conn.execute(
+            'SELECT original_url, clicks FROM urls WHERE short_code = ?',
+            (short_code,),
+        )
         row = cursor.fetchone()
         if row:
-            conn.execute('UPDATE urls SET clicks = clicks + 1 WHERE short_code = ?', (short_code,))
+            conn.execute(
+                'UPDATE urls SET clicks = clicks + 1 WHERE short_code = ?',
+                (short_code,),
+            )
             conn.commit()
             return redirect(row['original_url'])
-        else:
-            return "<h3>404 - Short URL Not Found</h3><p>The requested link does not exist.</p>", 404
+        return "<h3>404 - Short URL Not Found</h3><p>The requested link does not exist.</p>", 404
+
 
 if __name__ == '__main__':
     init_db()

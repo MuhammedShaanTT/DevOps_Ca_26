@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==============================================================================
-# INT333 DevOps - Test Verification Suite (Sections 10 of Synopsis)
+# INT333 DevOps - Test Verification Suite (Section 10 of Synopsis)
 # ==============================================================================
 KEY_FILE="$1"
 WEB1_IP="$2"
@@ -11,12 +11,12 @@ if [ -z "$KEY_FILE" ] || [ -z "$WEB1_IP" ]; then
 fi
 
 echo "--- Test 4: Testing URL Shortener HTTP Service ---"
-RESPONSE=$(curl -s "http://$WEB1_IP/health")
+RESPONSE=$(curl -s --max-time 10 "http://$WEB1_IP/health" || true)
 echo "Health Response: $RESPONSE"
 if [[ "$RESPONSE" == *"UP"* ]]; then
-    echo "✅ TEST 4 PASSED: URL Shortener is healthy."
+    echo "TEST 4 PASSED: URL Shortener is healthy."
 else
-    echo "❌ TEST 4 FAILED: Service did not return UP."
+    echo "TEST 4 FAILED: Service did not return UP."
 fi
 
 echo -e "\n--- Test 5: Simulating Service Outage & Self-Healing ---"
@@ -30,11 +30,11 @@ echo "Running Puppet Agent to correct drift and self-heal..."
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no ubuntu@"$WEB1_IP" "sudo /opt/puppetlabs/bin/puppet agent -t || true"
 
 echo "Checking status after Puppet run (expecting active):"
-STATUS=$(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no ubuntu@"$WEB1_IP" "systemctl is-active urlshortener")
+STATUS=$(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no ubuntu@"$WEB1_IP" "systemctl is-active urlshortener || true")
 if [ "$STATUS" == "active" ]; then
-    echo "✅ TEST 5 PASSED: Puppet self-healed the stopped service!"
+    echo "TEST 5 PASSED: Puppet self-healed the stopped service!"
 else
-    echo "❌ TEST 5 FAILED: Service is not active."
+    echo "TEST 5 FAILED: Service is not active."
 fi
 
 echo -e "\n--- Test 6: Simulating Configuration Drift & Self-Healing ---"
@@ -45,8 +45,8 @@ echo "Running Puppet Agent to restore desired file state..."
 ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no ubuntu@"$WEB1_IP" "sudo /opt/puppetlabs/bin/puppet agent -t || true"
 
 GREP_CHECK=$(ssh -i "$KEY_FILE" -o StrictHostKeyChecking=no ubuntu@"$WEB1_IP" "grep -c 'Flask' /opt/urlshortener/app.py || true")
-if [ "$GREP_CHECK" -gt 0 ]; then
-    echo "✅ TEST 6 PASSED: Puppet restored the original file state."
+if [ "${GREP_CHECK:-0}" -gt 0 ]; then
+    echo "TEST 6 PASSED: Puppet restored the original file state."
 else
-    echo "❌ TEST 6 FAILED: File was not restored."
+    echo "TEST 6 FAILED: File was not restored."
 fi

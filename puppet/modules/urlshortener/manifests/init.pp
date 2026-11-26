@@ -39,16 +39,16 @@ class urlshortener (
     owner   => 'root',
     group   => 'root',
     mode    => '0644',
-    content => @(SERVICE)
+    content => @("SERVICE")
       [Unit]
       Description=URL Shortener Flask Application (Puppet Managed)
       After=network.target
 
       [Service]
       User=root
-      WorkingDirectory=/opt/urlshortener
+      WorkingDirectory=${app_dir}
       ExecStartPre=/usr/bin/python3 -c "import app; app.init_db()"
-      ExecStart=/usr/bin/python3 -m gunicorn --workers 2 --bind 127.0.0.1:5000 app:app
+      ExecStart=/usr/bin/python3 -m gunicorn --workers 2 --bind 127.0.0.1:${port} app:app
       Restart=always
       RestartSec=3
       Environment=PYTHONUNBUFFERED=1
@@ -57,15 +57,14 @@ class urlshortener (
       WantedBy=multi-user.target
       SERVICE
     ,
-    notify  => [
-      Exec['systemd_daemon_reload'],
-      Service['urlshortener']
-    ],
+    notify  => Exec['systemd_daemon_reload'],
   }
 
   exec { 'systemd_daemon_reload':
     command     => '/bin/systemctl daemon-reload',
     refreshonly => true,
+    before      => Service['urlshortener'],
+    notify      => Service['urlshortener'],
   }
 
   service { 'urlshortener':

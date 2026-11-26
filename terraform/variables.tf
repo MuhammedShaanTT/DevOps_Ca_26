@@ -42,6 +42,6 @@ variable "web_count" {
 variable "nagios_admin_password" {
   description = "Password for Nagios Web UI (nagiosadmin)"
   type        = string
-  default     = "DevOps2026!"
+  default     = "DevOpsAdmin2026!"
   sensitive   = true
 }

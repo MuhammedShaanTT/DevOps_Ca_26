@@ -1,5 +1,5 @@
 # ==============================================================================
-# INT333 DevOps - Automated 1-Click Deployment (PowerShell)
+# INT333 DevOps - PowerShell Deployment Script
 # Provisions AWS Infra (Terraform), deploys Puppet catalogs, syncs Nagios,
 # and verifies URL Shortener is live.
 # ==============================================================================
@@ -14,7 +14,7 @@ $ErrorActionPreference = "Stop"
 
 if (-not $AccessKey -or -not $SecretKey) {
     Write-Host "AWS Access Key or Secret Key not found in environment." -ForegroundColor Red
-    Write-Host "Usage: .\scripts\deploy.ps1 -AccessKey 'AKIA...' -SecretKey 'piWL...'" -ForegroundColor Yellow
+    Write-Host "Usage: .\scripts\deploy.ps1 -AccessKey 'YOUR_KEY' -SecretKey 'YOUR_SECRET'" -ForegroundColor Yellow
     exit 1
 }
 
@@ -36,6 +36,9 @@ Write-Host " [Step 2/5] Running Terraform Apply on AWS...          " -Foreground
 Write-Host "=======================================================`n" -ForegroundColor Cyan
 
 Set-Location "c:\Users\shaha\devops\terraform"
+if (-not (Test-Path ".terraform")) {
+    terraform init
+}
 terraform apply -auto-approve
 
 $PUPPET_IP = (terraform output -raw puppet_master_public_ip).Trim()
@@ -50,8 +53,13 @@ foreach ($node in $WEB_NODES_JSON) {
     Write-Host " - $($node.node_name) IP       : $($node.public_ip)" -ForegroundColor White
 }
 
-Write-Host "`nWaiting for instances cloud-init bootstrap to finish (75s)..." -ForegroundColor Yellow
-Start-Sleep -Seconds 75
+Write-Host "`nWaiting for SSH & cloud-init bootstrap on Puppet Master..." -ForegroundColor Yellow
+for ($i = 0; $i -lt 24; $i++) {
+    ssh -i $KeyPath -o StrictHostKeyChecking=no -o ConnectTimeout=5 "ubuntu@$PUPPET_IP" "true" 2>$null
+    if ($LASTEXITCODE -eq 0) { break }
+    Start-Sleep -Seconds 5
+}
+ssh -i $KeyPath -o StrictHostKeyChecking=no "ubuntu@$PUPPET_IP" "cloud-init status --wait || true"
 
 Write-Host "`n=======================================================" -ForegroundColor Cyan
 Write-Host " [Step 3/5] Syncing Puppet Manifests & Modules...      " -ForegroundColor Cyan
@@ -68,30 +76,30 @@ Write-Host "=======================================================`n" -Foregrou
 
 foreach ($node in $WEB_NODES_JSON) {
     Write-Host "Configuring $($node.node_name) ($($node.public_ip))..." -ForegroundColor Yellow
-    ssh -i $KeyPath -o StrictHostKeyChecking=no "ubuntu@$($node.public_ip)" "sudo /opt/puppetlabs/bin/puppet agent -t || true"
+    ssh -i $KeyPath -o StrictHostKeyChecking=no "ubuntu@$($node.public_ip)" "cloud-init status --wait || true; sudo /opt/puppetlabs/bin/puppet agent -t || true"
 }
 
 Write-Host "`n=======================================================" -ForegroundColor Cyan
 Write-Host " [Step 5/5] Syncing Nagios Monitoring Configurations..." -ForegroundColor Cyan
 Write-Host "=======================================================`n" -ForegroundColor Cyan
 
+ssh -i $KeyPath -o StrictHostKeyChecking=no "ubuntu@$NAGIOS_IP" "cloud-init status --wait || true"
 scp -i $KeyPath -o StrictHostKeyChecking=no nagios/generated_hosts.cfg "ubuntu@${NAGIOS_IP}:/tmp/"
 scp -i $KeyPath -o StrictHostKeyChecking=no nagios/services.cfg "ubuntu@${NAGIOS_IP}:/tmp/"
 scp -i $KeyPath -o StrictHostKeyChecking=no nagios/commands.cfg "ubuntu@${NAGIOS_IP}:/tmp/"
 
-ssh -i $KeyPath -o StrictHostKeyChecking=no "ubuntu@$NAGIOS_IP" "sudo cp /tmp/generated_hosts.cfg /etc/nagios4/conf.d/; sudo cp /tmp/services.cfg /etc/nagios4/conf.d/; sudo cp /tmp/commands.cfg /etc/nagios4/conf.d/; sudo systemctl restart nagios4; echo 'Nagios configured.'"
+ssh -i $KeyPath -o StrictHostKeyChecking=no "ubuntu@$NAGIOS_IP" "sudo cp /tmp/generated_hosts.cfg /etc/nagios4/conf.d/; sudo cp /tmp/services.cfg /etc/nagios4/conf.d/; sudo cp /tmp/commands.cfg /etc/nagios4/conf.d/; sudo /usr/sbin/nagios4 -v /etc/nagios4/nagios.cfg; sudo systemctl restart nagios4; echo 'Nagios configured.'"
 
 Write-Host "`n=======================================================" -ForegroundColor Green
 Write-Host " DEPLOYMENT SUCCESSFUL! YOUR WEBSITE IS LIVE!          " -ForegroundColor Green
 Write-Host "=======================================================`n" -ForegroundColor Green
 
 foreach ($node in $WEB_NODES_JSON) {
-    Write-Host " Web App URL : $($node.app_url)" -ForegroundColor Cyan
+    Write-Host " Web App URL : $($node.app_url) (Alt: $($node.alt_url))" -ForegroundColor Cyan
     Write-Host " Health Check: $($node.health_url)" -ForegroundColor Gray
 }
 Write-Host "`n Nagios Dashboard : http://$NAGIOS_IP/nagios4/ (User: nagiosadmin / Pass: DevOpsAdmin2026!)" -ForegroundColor Yellow
 
-# Automatically launch the web application in default browser
 if ($WEB_NODES_JSON.Count -gt 0) {
     Start-Process $WEB_NODES_JSON[0].app_url
 }

@@ -7,6 +7,7 @@ from app.app import app, init_db
 def client():
     # Use temporary database for tests
     db_fd, db_path = tempfile.mkstemp()
+    os.close(db_fd)
     os.environ['URLSHORTENER_DB_PATH'] = db_path
     app.config['TESTING'] = True
 
@@ -16,7 +17,6 @@ def client():
     with app.test_client() as client:
         yield client
 
-    os.close(db_fd)
     os.unlink(db_path)
 
 def test_health_check(client):
